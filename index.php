@@ -12,6 +12,8 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\LabelAlignment;
 use Endroid\QrCode\QrCode;
 
+
+define("URL_WS", "https://desarrollo.api.logify.com.mx/");
 function TildesHtml($cadena) 
     { 
         return str_replace(array("á","é","í","ó","ú","ñ","Á","É","Í","Ó","Ú","Ñ"),
@@ -135,6 +137,8 @@ $app->get("/inicio",function($request, $response, $argas){
 	<?php
 });
 $app->post("/procesar",function($request, $response, $argas){
+	echo "<pre>";
+
 	$files = $request->getUploadedFiles();
 	$paq = $files['paq'];
 	if($paq->getError() === UPLOAD_ERR_OK){
@@ -149,133 +153,109 @@ $app->post("/procesar",function($request, $response, $argas){
 		$age = "assets/txt/".date('YmdHis').$upload_age_name;
 		$agepath = "assets/txt/".date('YmdHis').$upload_age_name;
 	}
-	/* PAQ */
 	$file_handle = fopen($paqpath, "rb");
 	$i=0;
+	$array = array();
+	$array2 = array();
 	echo "<pre>";
 	while (!feof($file_handle) ) {
 	$line_of_text = fgets($file_handle);
-	$parts = explode('|', $line_of_text);
 	if($i!=0){
-		// Guardar guía
-		if(!empty($parts[11])){
-			$guia = new Guiachequera();
-			$guia->id = $parts[11];
-			$guia->paq1 = $parts[0];
-			$guia->paq2 = $parts[2];
-			$guia->paq3 = $parts[3];
-			$guia->paq4 = $parts[4];
-			$guia->paq5 = $parts[5];
-			$guia->paq6 = $parts[12];
-			$guia->peso = $parts[1];
-			$guia->cantidad = $parts[4];
-			$guia->descripcion = $parts[6];
-			$guia->referencia = $parts[7];
-			$guia->remitente = $parts[10];
-			$guia->save();
+		if(!empty($line_of_text)){
+			array_push($array, $line_of_text);
 		}
 	}
 	$i++;
 	}
 	fclose($file_handle);
-	unlink($paqpath);
-
-	/* AGE */
 	$file_handle = fopen($agepath, "rb");
 	$i=0;
-	echo "<pre>";
 	while (!feof($file_handle) ) {
 		$line_of_text = fgets($file_handle);
-		$parts = explode('|', $line_of_text);
-		$guias = new Guiachequera();
-		$guia = $guias->find($parts[0]);
 		if(!empty($line_of_text)){
-			$guia->destinatario = utf8_decode($parts[2]);
-			$guia->correo_destinatario = utf8_decode($parts[3]);
-			$guia->ciudad = utf8_decode($parts[5]);
-			$guia->direccion1 = utf8_decode($parts[6]);
-			$guia->direccion2 = utf8_decode($parts[7]);
-			$guia->colonia = utf8_decode($parts[9]);
-			$guia->telefono = utf8_decode($parts[11]);
-			$guia->estado = utf8_decode($parts[13]);
-			$guia->municipio = utf8_decode($parts[14]);
-			$guia->save();
-			/* QR CODES */
-			$qrCode = new QrCode($guia->id);
-			$qrCode->setSize(300);
-
-			// Set advanced options
-			$qrCode->setWriterByName('png');
-			$qrCode->setMargin(10);
-			$qrCode->setEncoding('UTF-8');
-			$qrCode->setErrorCorrectionLevel(ErrorCorrectionLevel::HIGH);
-			$qrCode->setForegroundColor(['r' => 0, 'g' => 0, 'b' => 0]);
-			$qrCode->setBackgroundColor(['r' => 255, 'g' => 255, 'b' => 255]);
-			$qrCode->writeFile('qrs/'.$guia->id.'.png');
-
-			$html =
-			      '
-			<!DOCTYPE html>
-			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
-				<title>Guía Logify</title>
-				<style>
-					html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td,article,aside,canvas,details,embed,figure,figcaption,footer,header,hgroup,menu,nav,output,ruby,section,summary,time,mark,audio,video{margin:0;padding:0;border:0;font-size:100%;font:inherit;vertical-align:baseline}article,aside,details,figcaption,figure,footer,header,hgroup,menu,nav,section{display:block}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:"";content:none}table{border-collapse:collapse;border-spacing:0}
-					body{font-family: Arial, sans-serif;}
-					#wrap{width:300px; margin:0 auto;border:1px solid #e0e2e5;}
-					#logo{width:100px; margin-left:100px}
-					#qr{width:100px; margin-left:100px}
-					#destinatario{padding:20px}
-					h2{font-weight: bold; font-size: 25px;}
-					#remitente{padding:20px}
-					p {line-height: normal;}
-					#extras{width: 92%;padding: 20px 4%;background: #e0e2e5; text-align: center;}
-					#extras h2{font-size: 50px;text-align: center;}
-					#no_guia{text-align:center; font-weight:bolc; font-size:20px}
-				</style>
-			</head>
-			<body>
-				<div id="wrap">
-					<br>
-					<br>
-					<img id="logo" src="img/logo.png" alt=""> <br>
-					<img id="qr" src="'.'qrs/'.$guia->id.'.png'.'" alt="">
-					<div id="no_guia">'.$guia->id.'</div>
-					<div id="remitente">
-						<h2>REMITENTE</h2>
-						<p>'.$guia->remitente.'</p>
-					</div>
-					<div id="destinatario">
-						<h2>DESTINATARIO</h2>
-						<p>'.$guia->destinatario .' <br> '.$guia->direccion1.' <br> '.$guia->direccion2.' '.$guia->colonia.' '.$guia->municipio.' '.$guia->estado.'<br>Tel. '.$guia->telefono.' <br></p>
-						<p>Contenido del paquete: '.$cont_paquete.'</p>
-						<p>Números de token: '.str_replace("|", " - ", $ids_tokens).'</p>
-					</div>
-					<div id="extras">
-						<h2>'.$guia->cp.'</h2>
-						<p>'.$guia->estado.'</p>
-						<p>'.$guia->municipio.'</p>
-						<p>'.$guia->colonia.'</p>
-					</div>
-				</div>
-			</body>
-			</html>
-      		';
-      		$html = TildesHtml($html);
-		    $options = new Options();
-			$options->setIsRemoteEnabled(true);
-		    $dompdf = new DOMPDF($options);
-		    $dompdf->load_html($html);
-		    $dompdf->render();
-		    $output = $dompdf->output();
-		    file_put_contents('pdfs/'.$guia->id.'.pdf', $output);
-		    $base64_pdf =  file_get_contents('pdfs/'.$guia->id.'.pdf');
-		    $base64_pdf = base64_encode($base64_pdf);
+			$var1 = $array[$i];
+			$var2 = $line_of_text;
+			array_push($array2, $var1.$var2);
 		}
+		$i++;
 	}
 	fclose($file_handle);
 	unlink($agepath);
+	unlink($paqpath);
+	echo "<pre>";
+	foreach ($array2 as $a) {
+		$datos = explode("|", $a);
+		$nombres =  explode(" ", $datos[22]);
+		$tamano_nombres = count($nombres);
+		$nombre = "";
+		$paterno = "";
+		$materno = "";
+		if($tamano_nombres>=4){
+			$paterno = $nombres[$tamano_nombres-2];
+			$materno = $nombres[$tamano_nombres-1];
+			for ($j=0; $j < $tamano_nombres -2 ; $j++) { 
+				$nombre.=$nombres[$j]." ";
+			}
+		}else{
+			$nombre = $nombres[0]." ";
+			$paterno = $nombres[1];
+			$materno = $nombres[2];
+		}
+		/* obtener id de estado */ 
+		$cp = file_get_contents(URL_WS."info_cp/".$datos[26]);
+		$cp = json_decode($cp);
+		$id_edo_dest = $cp[0]->idEstado;
+		//print_r($nombres);
+		$url = URL_WS."createLabel";
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_POST, 1);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		$request_headers = array();
+		$data = array(
+			'nombre_dest' => $nombre, 
+			'paterno_dest' => $paterno, 
+			'materno_dest' => $materno, 
+			'dir1_dest' => $datos[23], 
+			'dir2_dest' => $datos[24], 
+			'id_edo_dest' => $id_edo_dest, 
+			'edo_dest' => $datos[29], 
+			'mun_dest' =>  $datos[30], 
+			'asent_dest' => $datos[25], 
+			'cp_dest' => $datos[26],
+			'tel_dest' => $datos[27], 
+			'nombre_remit' => 'LUIS MANUEL', 
+			'paterno_remit' => 'IBARRA' , 
+			'materno_remit' => 'HURTADO' , 
+			'dir1_remit' =>  'INSURGENTES SUR 533', 
+			'dir2_remit' => 'PISO 3', 
+			'id_edo_remit' => 9, 
+			'edo_remit' => 'CDMX', 
+			'mun_remit' => 'MIGUEL HIDALGO', 
+			'asent_remit' => 'ESCANDÓN I SECCIÓN', 
+			'cp_remit' => '11800', 
+			'tel_remit' => '015552780000', 
+			'compania_remit' => 'BANCOPPEL', 
+			'client_code' => 'BCL', 
+			'branch_number' => '0001', 
+			'servicio' => 'Terrestre', 
+			'cont_paquete' => $datos[6],  
+			'peso' => $datos[1], 
+			'ids_tokens' => $datos[7], 
+			'fecha_atencionv' => date('Y-m-d H:i:s'),
+			'status' => 'solicitado'
+		);
+		$request_headers[] = 'apikey: 17c1f771550d3a3488cc20ca9f428aea';
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $request_headers);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+		$result = curl_exec ($ch);
+		curl_close ($ch);
+		$result = json_decode($result);
+		print_r($result);
+	}
+	/* PASO 1 GENERAR ARCHIVOS DE GUÍAS */
+
+
 });
 $app->run();
 
